@@ -1,0 +1,127 @@
+name: build_deploy_aks
+on:
+  push:
+    branches:
+      - main
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code 
+        uses: actions/checkout@v3
+      #- name: ACR build
+      #  id: build-push-acr
+      #  uses: azure/acr-build@v1
+      #  with:
+      #    service_principal: ${{ secrets.service_principal }}
+      #    service_principal_password: ${{ secrets.service_principal_password }}
+      #    tenant: ${{ secrets.tenant }}
+      #    registry: ${{ secrets.registry }}
+      #    repository: ${{ secrets.repository }}
+      #    image:  azure-vote-front
+      #    folder: VotingAPP/azure-vote
+      #    branch: main
+      #    tag: ${{ github.sha }}
+  deploy-dev:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Checkout source code 
+        uses: actions/checkout@v3
+      - name: Azure login
+        id: login
+        uses: azure/login@v1.4.3
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Setup Kubelogin
+        uses: azure/use-kubelogin@v1
+        with:
+          kubelogin-version: 'v0.0.24'
+      - name: Set AKS context
+        id: set-context
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: '${{ secrets.resource_group }}' 
+          cluster-name: '${{ secrets.cluster_name }}'
+          use-kubelogin: 'true'
+      - name: Setup kubectl
+        id: install-kubectl
+        uses: azure/setup-kubectl@v3
+      - name: Deploy to AKS DEV Namespace
+        id: deploy-aks
+        uses: Azure/k8s-deploy@v4
+        with:
+          namespace: 'dev'
+          manifests: |
+             VotingApp/azure-vote-all-in-one-redis.yaml
+          images: '${{ secrets.registry }}.azurecr.io/azure-vote-front:v1'
+          pull-images: false
+  deploy-test:
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    environment: test
+    steps:
+      - name: Checkout source code 
+        uses: actions/checkout@v3
+      - name: Azure login
+        id: login
+        uses: azure/login@v1.4.3
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Setup Kubelogin
+        uses: azure/use-kubelogin@v1
+        with:
+          kubelogin-version: 'v0.0.24'
+      - name: Set AKS context
+        id: set-context
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: '${{ secrets.resource_group }}' 
+          cluster-name: '${{ secrets.cluster_name }}'
+          use-kubelogin: 'true'
+      - name: Setup kubectl
+        id: install-kubectl
+        uses: azure/setup-kubectl@v3
+      - name: Deploy to AKS Test Namespace
+        id: deploy-aks
+        uses: Azure/k8s-deploy@v4
+        with:
+          namespace: 'test'
+          manifests: |
+             VotingApp/azure-vote-all-in-one-redis.yaml
+  deploy-prod:
+    needs: deploy-test
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - name: Checkout source code 
+        uses: actions/checkout@v3
+      - name: Azure login
+        id: login
+        uses: azure/login@v1.4.3
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Setup Kubelogin
+        uses: azure/use-kubelogin@v1
+        with:
+          kubelogin-version: 'v0.0.24'
+      - name: Set AKS context
+        id: set-context
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: '${{ secrets.resource_group }}' 
+          cluster-name: '${{ secrets.cluster_name }}'
+          use-kubelogin: 'true'
+      - name: Setup kubectl
+        id: install-kubectl
+        uses: azure/setup-kubectl@v3
+      - name: Deploy to AKS Test Namespace
+        id: deploy-aks
+        uses: Azure/k8s-deploy@v4
+        with:
+          namespace: 'test'
+          manifests: |
+             VotingApp/azure-vote-all-in-one-redis.yaml
+          images: '${{ secrets.registry }}.azurecr.io/azure-vote-front:v1'
+          pull-images: false
